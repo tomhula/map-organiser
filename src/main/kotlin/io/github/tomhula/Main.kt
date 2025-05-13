@@ -102,6 +102,8 @@ private fun showImage(imageBytes: ByteArray)
     })
 }
 
+private fun mmToPixels(mm: Float, dpi: Int): Int = (mm * dpi / 25.4f).toInt()
+
 /**
  * Creates grid images of QR codes with A4 proportions.
  * 
