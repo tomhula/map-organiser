@@ -6,16 +6,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
+import qrcode.QRCode
 
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args[0]
-    
+
     val oris: Oris = OrisImpl()
 
-    val tomId = oris.getUser(userRegNum)!!.id
-    val userEventEntries = oris.getUserEventEntries(tomId, dateFrom = LocalDate(2018, 1, 1))
+    val userId = oris.getUser(userRegNum)!!.id
+    val userEventEntries = oris.getUserEventEntries(userId, dateFrom = LocalDate(2018, 1, 1))
 
-    println("Found ${userEventEntries.size} user event entries for user $tomId")
+    println("Found ${userEventEntries.size} user event entries for user $userId")
 
     val eventsDeferred = userEventEntries
         .sortedBy { it.eventDate }
@@ -23,8 +24,10 @@ fun main(args: Array<String>) = runBlocking {
 
     val events = eventsDeferred.awaitAll()
 
-    for (event in events)
-    {
-        println("${event.date} ${event.name} - ${event.map}")
+    val eventQrCodes = events.associateWith {
+        QRCode.ofSquares()
+            .withInnerSpacing(0)
+            .build("https://oris.orientacnisporty.cz/Zavod?id=${it.id}")
+            .renderToBytes()
     }
 }

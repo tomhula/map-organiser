@@ -13,6 +13,7 @@ repositories {
 dependencies {
     implementation("io.github.tomhula:orisclient-jvm:0.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("io.github.g0dkar:qrcode-kotlin:4.4.1")
 
     testImplementation(kotlin("test"))
 }
