@@ -2,8 +2,10 @@ package io.github.tomhula
 
 import io.github.tomhula.orisclient.Oris
 import io.github.tomhula.orisclient.OrisImpl
+import io.github.tomhula.orisclient.dto.Event
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
 import qrcode.QRCode
@@ -18,6 +20,9 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
 
+
+val oris: Oris = OrisImpl()
+
 // A4 dimensions in millimeters
 const val A4_WIDTH_MM = 210
 const val A4_HEIGHT_MM = 297
@@ -30,25 +35,10 @@ fun main(args: Array<String>) = runBlocking {
     // Default cell width is 3cm, but can be overridden by passing a second argument
     val cellWidthCm = if (args.size > 1) args[1].toDoubleOrNull() ?: DEFAULT_CELL_WIDTH_CM else DEFAULT_CELL_WIDTH_CM
 
-    val oris: Oris = OrisImpl()
+    val events = getUserEvents(userRegNum)
+        .sortedBy { it.date }
 
-    val userId = oris.getUser(userRegNum)!!.id
-    val userEventEntries = oris.getUserEventEntries(userId, dateFrom = LocalDate(2018, 1, 1))
-
-    println("Found ${userEventEntries.size} user event entries for user $userId")
-
-    val eventsDeferred = userEventEntries
-        .sortedBy { it.eventDate }
-        .map { async { oris.getEvent(it.eventId) } }
-
-    val events = eventsDeferred.awaitAll()
-
-    val eventQrCodes = events.associateWith {
-        QRCode.ofSquares()
-            .withInnerSpacing(0)
-            .build("https://oris.orientacnisporty.cz/Zavod?id=${it.id}")
-            .renderToBytes()
-    }
+    val eventQrCodes = events.associateWith(::createEventQrCode)
 
     // Create QR code grid images
     val qrCodeGridImages = createQrCodeGridImages(events, eventQrCodes, cellWidthCm)
@@ -59,6 +49,31 @@ fun main(args: Array<String>) = runBlocking {
     }
 
     println("Generated ${qrCodeGridImages.size} QR code grid images")
+}
+
+private suspend fun getUserEvents(userRegNum: String): List<Event>
+{
+    val userId = oris.getUser(userRegNum)?.id
+    
+    if (userId == null)
+        throw RuntimeException("User with registration number $userRegNum not found")
+
+    val userEventEntries = oris.getUserEventEntries(userId)
+    
+    return coroutineScope { 
+        val eventsDeferred = userEventEntries.map { 
+            async { oris.getEvent(it.id) }
+        }
+        eventsDeferred.awaitAll()
+    }
+}
+
+private fun createEventQrCode(event: Event): ByteArray
+{
+    return QRCode.ofSquares()
+        .withInnerSpacing(0)
+        .build("https://oris.orientacnisporty.cz/Zavod?id=${event.id}")
+        .renderToBytes()
 }
 
 /**
