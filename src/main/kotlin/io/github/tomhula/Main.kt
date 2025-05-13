@@ -12,10 +12,15 @@ import qrcode.QRCode
 import java.awt.Color
 import java.awt.Font
 import java.awt.RenderingHints
+import java.awt.event.KeyEvent
+import java.awt.event.KeyListener
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.IOException
 import javax.imageio.ImageIO
+import javax.swing.ImageIcon
+import javax.swing.JFrame
+import javax.swing.JLabel
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.min
@@ -74,6 +79,27 @@ private fun createEventQrCode(event: Event): ByteArray
         .withInnerSpacing(0)
         .build("https://oris.orientacnisporty.cz/Zavod?id=${event.id}")
         .renderToBytes()
+}
+
+private fun showImage(imageBytes: ByteArray)
+{
+    val bufferedImage = ImageIO.read(imageBytes.inputStream())
+    val frame = JFrame()
+    frame.add(JLabel(ImageIcon(bufferedImage)))
+    frame.pack()
+    // To show the frame in the center of the screen
+    frame.setLocationRelativeTo(null)
+    frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
+    frame.isVisible = true
+    frame.addKeyListener(object : KeyListener {
+        override fun keyTyped(e: KeyEvent?) = Unit
+        override fun keyPressed(e: KeyEvent?) = Unit
+        override fun keyReleased(e: KeyEvent?)
+        {
+            if (e?.keyCode == KeyEvent.VK_ESCAPE)
+                frame.dispose()
+        }
+    })
 }
 
 /**
