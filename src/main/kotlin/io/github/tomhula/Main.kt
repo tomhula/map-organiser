@@ -61,8 +61,8 @@ private suspend fun getUserEvents(userRegNum: String): List<Event>
     val userEventEntries = oris.getUserEventEntries(userId)
     
     return coroutineScope { 
-        val eventsDeferred = userEventEntries.map { 
-            async { oris.getEvent(it.id) }
+        val eventsDeferred = userEventEntries.map { userEventEntry ->
+            async { oris.getEvent(userEventEntry.eventId) }
         }
         eventsDeferred.awaitAll()
     }
