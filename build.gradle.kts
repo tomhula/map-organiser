@@ -12,6 +12,8 @@ repositories {
 
 dependencies {
     implementation("io.github.tomhula:orisclient-jvm:0.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
     testImplementation(kotlin("test"))
 }
 
