@@ -17,14 +17,14 @@
         {
             display: grid;
             grid-template-columns: repeat(3, 500px); /* 3 columns */
-            grid-template-rows: repeat(4, 1fr); /* 4 rows */
+            gap: 30px;
         }
 
         .cell-container
         {
             display: grid;
-            grid-template-columns: 150px 1fr;
-            grid-template-rows: min-content 150px min-content;
+            grid-template-columns: 100px 1fr;
+            grid-template-rows: repeat(3, min-content);
             grid-gap: 0;
         }
 
@@ -48,12 +48,19 @@
         .number
         {
             font-weight: bold;
-            font-size: 20px;
+            font-size: 30px;
+            
+            margin-bottom: 5px;
         }
 
         .map-name
         {
-            font-size: 20px;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            
+            margin-top: 15px;
         }
 
         .meta
@@ -61,7 +68,10 @@
             display: flex;
             flex-direction: column;
             row-gap: 10px;
-            overflow: hidden;
+            height: 100%;
+
+            margin-left: 20px;
+            font-size: 18px;
         }
     </style>
 </head>
@@ -78,13 +88,13 @@
                 <img class="qr-code" src="${gridEvent.qrCodeUrl}" alt="QR Code">
             </div>
             <div class="bottom">
-                <p class="map-name">${gridEvent.map!"Unknown map"}</p>
+                <p class="map-name">${gridEvent.map!"Neznámá mapa"}</p>
             </div>
             <div class="right">
                 <div class="meta">
                     <p>${gridEvent.date}</p>
                     <p>${gridEvent.name}</p>
-                    <p>${gridEvent.place!"Unknown place"}</p>
+                    <p>${gridEvent.place!"Neznámé místo"}</p>
                 </div>
             </div>
         </div>
