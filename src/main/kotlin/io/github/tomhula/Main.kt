@@ -11,7 +11,9 @@ import kotlinx.datetime.LocalDate
 import qrcode.QRCode
 import java.awt.Color
 import java.awt.Font
+import java.awt.FontMetrics
 import java.awt.RenderingHints
+import java.awt.Toolkit
 import java.awt.event.KeyEvent
 import java.awt.event.KeyListener
 import java.awt.image.BufferedImage
@@ -40,10 +42,30 @@ fun main(args: Array<String>) = runBlocking {
     // Default cell width is 3cm, but can be overridden by passing a second argument
     val cellWidthCm = if (args.size > 1) args[1].toDoubleOrNull() ?: DEFAULT_CELL_WIDTH_CM else DEFAULT_CELL_WIDTH_CM
 
-    val events = getUserEvents(userRegNum)
-        .sortedBy { it.date }
+    /*val events = getUserEvents(userRegNum)
+        .sortedBy { it.date }*/
 
-    val eventQrCodes = events.associateWith(::createEventQrCode)
+    val lastEvent = oris.getEvent(8222)
+    val lastEventCellImage = createEventCell(
+        number = 254,
+        event = lastEvent,
+        widthPx = 1000,
+        qrCodeSizePx = 100,
+        numberFontSizePx = 50,
+        numberMarginPx = 10,
+        metaMarginPx = 30,
+        metaFontSizePx = 20,
+        metaLineSpacingPx = 10,
+        mapNameFontSizePx = 20,
+        mapNameMarginPx = 10,
+        dpi = Toolkit.getDefaultToolkit().getScreenResolution().also { println("Screen resolution: $it dpi") }
+    )
+
+    saveImageToFile(lastEventCellImage, "last_event_cell.png")
+
+    showImage(lastEventCellImage)
+
+    /*val eventQrCodes = events.associateWith(::createEventQrCode)
 
     // Create QR code grid images
     val qrCodeGridImages = createQrCodeGridImages(events, eventQrCodes, cellWidthCm)
@@ -53,18 +75,18 @@ fun main(args: Array<String>) = runBlocking {
         saveImageToFile(image, "qr_code_grid_${index + 1}.png")
     }
 
-    println("Generated ${qrCodeGridImages.size} QR code grid images")
+    println("Generated ${qrCodeGridImages.size} QR code grid images")*/
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
 {
     val userId = oris.getUser(userRegNum)?.id
-    
+
     if (userId == null)
         throw RuntimeException("User with registration number $userRegNum not found")
 
     val userEventEntries = oris.getUserEventEntries(userId)
-    
+
     return coroutineScope { 
         val eventsDeferred = userEventEntries.map { userEventEntry ->
             async { oris.getEvent(userEventEntry.eventId) }
@@ -81,11 +103,10 @@ private fun createEventQrCode(event: Event): ByteArray
         .renderToBytes()
 }
 
-private fun showImage(imageBytes: ByteArray)
+private fun showImage(image: BufferedImage)
 {
-    val bufferedImage = ImageIO.read(imageBytes.inputStream())
     val frame = JFrame()
-    frame.add(JLabel(ImageIcon(bufferedImage)))
+    frame.add(JLabel(ImageIcon(image)))
     frame.pack()
     // To show the frame in the center of the screen
     frame.setLocationRelativeTo(null)
@@ -102,7 +123,151 @@ private fun showImage(imageBytes: ByteArray)
     })
 }
 
-private fun mmToPixels(mm: Float, dpi: Int): Int = (mm * dpi / 25.4f).toInt()
+private fun mmToPx(mm: Float, dpi: Int): Int = (mm * dpi / 25.4f).toInt()
+
+private fun ptToPx(pt: Float, dpi: Int): Int = (pt * dpi / 72f).toInt()
+
+private fun ptToPx(pt: Int, dpi: Int): Int = ptToPx(pt.toFloat(), dpi)
+
+private fun pxToPt(px: Int, dpi: Int): Float = px * 72f / dpi
+
+/**
+ * Sizes are in pixels
+ *
+ * @param numberMarginPx The space between the qrcode and the number
+ * @param metaMarginPx The space between the qrcode and the meta-text
+ * @param mapNameFontSizePx Font size for the map name text
+ * @param mapNameMarginPx The space between the map name and the content above it
+ * */
+private fun createEventCell(
+    event: Event,
+    number: Int,
+    widthPx: Int,
+    qrCodeSizePx: Int,
+    numberFontSizePx: Int,
+    numberMarginPx: Int,
+    metaFontSizePx: Int,
+    metaLineSpacingPx: Int,
+    mapNameFontSizePx: Int,
+    mapNameMarginPx: Int,
+    metaMarginPx: Int,
+    dpi: Int
+): BufferedImage 
+{
+    // Extract repeated code to a properly named function
+    fun truncateText(text: String, fontMetrics: FontMetrics, maxWidth: Int): String 
+    {
+        if (fontMetrics.stringWidth(text) <= maxWidth) 
+            return text
+
+        var truncatedText = text
+        while (fontMetrics.stringWidth("$truncatedText...") > maxWidth && truncatedText.isNotEmpty())
+            truncatedText = truncatedText.substring(0, truncatedText.length - 1)
+        
+        return "$truncatedText..."
+    }
+
+    val metaTextWidthRatio = 0.9 // Meta text takes 90% of the available width
+    val mapTextWidthRatio = 0.9 // Map text takes 90% of the total width
+
+    val qrCode = createEventQrCode(event)
+    val qrCodeImage = ImageIO.read(qrCode.inputStream())
+
+    // Use the provided QR code size parameter
+    val qrCodeSize = qrCodeSizePx
+
+    val numberHeight = numberFontSizePx
+    val metaTextHeight = 3 * metaFontSizePx + 2 * metaLineSpacingPx
+    val mapNameHeight = mapNameFontSizePx
+
+    // Calculate total height: number + margin + max(qrcode, meta text) + margin + map name
+    val contentHeight = numberHeight + numberMarginPx + 
+                       Math.max(qrCodeSize, metaTextHeight) + 
+                       mapNameMarginPx + mapNameHeight
+
+    val cellImage = BufferedImage(widthPx, contentHeight, BufferedImage.TYPE_INT_RGB)
+    val g2d = cellImage.createGraphics()
+
+    // Set white background
+    g2d.color = Color.WHITE
+    g2d.fillRect(0, 0, widthPx, contentHeight)
+
+    // Enable anti-aliasing for better text quality
+    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+
+    // Draw the number centered above the QR code itself
+    g2d.color = Color.BLACK
+    g2d.font = Font("Arial", Font.BOLD, pxToPt(numberFontSizePx, dpi = dpi).toInt())
+    val numberText = number.toString()
+    val numberTextWidth = g2d.fontMetrics.stringWidth(numberText)
+    g2d.drawString(numberText, (qrCodeSize - numberTextWidth) / 2, numberHeight)
+
+    // Draw the QR code on the left side
+    val qrCodeX = 0
+    val qrCodeY = numberHeight + numberMarginPx
+    g2d.drawImage(qrCodeImage, qrCodeX, qrCodeY, qrCodeSize, qrCodeSize, null)
+
+    // Draw the meta text (date, name, location) next to the QR code
+    g2d.font = Font("Arial", Font.PLAIN, pxToPt(metaFontSizePx, dpi = dpi).toInt())
+    val metaFontMetrics = g2d.fontMetrics
+
+    // Calculate available width for meta text
+    val metaTextX = qrCodeSize + metaMarginPx
+    val availableMetaWidth = widthPx - metaTextX
+    val maxMetaTextWidth = (availableMetaWidth * metaTextWidthRatio).toInt()
+
+    // Truncate texts if needed
+    val dateText = truncateText(event.date.toString(), metaFontMetrics, maxMetaTextWidth)
+    val nameText = truncateText(event.name, metaFontMetrics, maxMetaTextWidth)
+    // Using a placeholder for location since it's not available in the Event class
+    val locationText = truncateText(event.place ?: "Unknown place", metaFontMetrics, maxMetaTextWidth)
+
+    // Calculate starting position for meta text
+    val metaY = qrCodeY
+
+    // Draw the first line (date)
+    g2d.drawString(
+        dateText,
+        metaTextX,
+        metaY + metaFontSizePx
+    )
+
+    // Draw the second line (name)
+    g2d.drawString(
+        nameText,
+        metaTextX,
+        metaY + metaFontSizePx + metaLineSpacingPx + metaFontSizePx
+    )
+
+    // Draw the third line (location)
+    g2d.drawString(
+        locationText,
+        metaTextX,
+        metaY + metaFontSizePx + metaLineSpacingPx + metaFontSizePx + metaLineSpacingPx + metaFontSizePx
+    )
+
+    // Draw the map name below everything
+    g2d.font = Font("Arial", Font.PLAIN, pxToPt(mapNameFontSizePx, dpi = dpi).toInt())
+    val mapFontMetrics = g2d.fontMetrics
+    val maxMapTextWidth = (widthPx * mapTextWidthRatio).toInt()
+
+    // Truncate map text if needed
+    val mapText = truncateText(event.map ?: "Unknown map", mapFontMetrics, maxMapTextWidth)
+
+    // Calculate position for map text
+    val mapY = qrCodeY + qrCodeSize.coerceAtLeast(metaTextHeight) + mapNameMarginPx
+
+    // Draw the map text (left-aligned to the entire image)
+    g2d.drawString(
+        mapText,
+        0, // Left-aligned with the left edge of the entire image
+        mapY + mapNameFontSizePx
+    )
+
+    g2d.dispose()
+    return cellImage
+}
 
 /**
  * Creates grid images of QR codes with A4 proportions.
