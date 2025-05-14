@@ -31,11 +31,7 @@
         .top { grid-area: 1 / 1 / 2 / 2; }
         .center { grid-area: 2 / 1 / 3 / 2; }
         .bottom { grid-area: 3 / 1 / 4 / 3; }
-        .right
-        {
-            grid-area: 2 / 2 / 3 / 3;
-            overflow: hidden;
-        }
+        .right { grid-area: 2 / 2 / 3 / 3; }
 
         .qr-code
         {
@@ -66,13 +62,6 @@
             flex-direction: column;
             row-gap: 10px;
             overflow: hidden;
-        }
-
-        .meta p
-        {
-            text-overflow: ellipsis;
-            overflow: hidden;
-            white-space: nowrap;
         }
     </style>
 </head>
