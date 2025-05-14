@@ -24,9 +24,8 @@
         {
             display: grid;
             grid-template-columns: 150px 1fr;
-            grid-template-rows: 1fr 150px 1fr;
-            grid-column-gap: 0;
-            grid-row-gap: 0;
+            grid-template-rows: min-content 150px min-content;
+            grid-gap: 0;
         }
 
         .top { grid-area: 1 / 1 / 2 / 2; }
