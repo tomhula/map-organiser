@@ -27,7 +27,13 @@ val freemarkerConfig = Configuration(Configuration.VERSION_2_3_34).apply {
 
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
+    val outputFile = args.getOrNull(1) ?: "event_grid.html"
 
+    val events = getUserEvents(userRegNum)
+    val gridHtml = renderGrid(events)
+
+    File(outputFile).writeText(gridHtml)
+    println("Event grid has been generated to $outputFile")
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
@@ -56,21 +62,25 @@ private fun createEventQrCode(event: Event): ByteArray
 }
 
 @OptIn(ExperimentalEncodingApi::class)
-private fun renderCell(event: Event): String
+private fun renderGrid(events: List<Event>): String
 {
-    val qrCode = createEventQrCode(event)
-    val qrCodeBase64 = Base64.encode(qrCode)
-    val qrCodeUrl = "data:image/png;base64,$qrCodeBase64"
+    val eventsWithQrCodeUrls = events.map { event ->
+        val qrCode = createEventQrCode(event)
+        val qrCodeBase64 = Base64.encode(qrCode)
+        val qrCodeUrl = "data:image/png;base64,$qrCodeBase64"
+        EventWithQrCode(event, qrCodeUrl)
+    }
 
     val dataModel = mapOf(
-        "event" to event,
-        "qrCodeUrl" to qrCodeUrl
+        "events" to eventsWithQrCodeUrls,
     )
 
-    val template = freemarkerConfig.getTemplate("cell.ftlh")
+    val template = freemarkerConfig.getTemplate("grid.ftlh")
     val writer = StringWriter()
     template.process(dataModel, writer)
     val result = writer.toString()
     writer.close()
     return result
 }
+
+data class EventWithQrCode(val event: Event, val qrCodeUrl: String)
