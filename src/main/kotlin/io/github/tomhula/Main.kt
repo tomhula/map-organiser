@@ -44,7 +44,7 @@ fun main(args: Array<String>) = runBlocking {
     val gridHtml = renderGrid(events)
 
     File(outputFile).writeText(gridHtml)
-    println("Event grid has been generated to $outputFile")
+    println("Event grid of ${events.size} events has been generated to $outputFile")
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
