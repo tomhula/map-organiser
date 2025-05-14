@@ -16,7 +16,7 @@
         .grid-container
         {
             display: grid;
-            grid-template-columns: repeat(3, 1fr); /* 3 columns */
+            grid-template-columns: repeat(3, 500px); /* 3 columns */
             grid-template-rows: repeat(4, 1fr); /* 4 rows */
         }
 
@@ -29,24 +29,13 @@
             grid-row-gap: 0;
         }
 
-        .top
-        {
-            grid-area: 1 / 1 / 2 / 2;
-        }
-
-        .center
-        {
-            grid-area: 2 / 1 / 3 / 2;
-        }
-
-        .bottom
-        {
-            grid-area: 3 / 1 / 4 / 3;
-        }
-
+        .top { grid-area: 1 / 1 / 2 / 2; }
+        .center { grid-area: 2 / 1 / 3 / 2; }
+        .bottom { grid-area: 3 / 1 / 4 / 3; }
         .right
         {
             grid-area: 2 / 2 / 3 / 3;
+            overflow: hidden;
         }
 
         .qr-code
@@ -77,6 +66,7 @@
             display: flex;
             flex-direction: column;
             row-gap: 10px;
+            overflow: hidden;
         }
 
         .meta p
