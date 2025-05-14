@@ -6,11 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Event Grid</title>
     <style>
-        @page {
-            size: A4;
-            margin: 10mm;
-        }
-
         *
         {
             padding: 0;
@@ -18,13 +13,12 @@
             box-sizing: border-box;
         }
 
-        .grid-container {
+        .grid-container 
+        {
             display: grid;
             grid-template-columns: repeat(3, 1fr); /* 3 columns */
             grid-template-rows: repeat(4, 1fr);    /* 4 rows */
             gap: 5mm;
-            width: 190mm;  /* A4 width minus margins */
-            height: 277mm; /* A4 height minus margins */
         }
 
         .cell-container
@@ -89,12 +83,13 @@
         <#list events as eventWithQrCodeUrl>
             <#assign event = eventWithQrCodeUrl.event>
             <#assign qrCodeUrl = eventWithQrCodeUrl.qrCodeUrl>
+            <#assign number = eventWithQrCodeUrl?index + 1>
         
             <div class="cell-wrapper">
                 <div class="cell-container">
                     <div class="cell-container">
                         <div class="top">
-                            <p class="number">5</p>
+                            <p class="number">${number}</p>
                         </div>
                         <div class="center">
                             <img class="qr-code" src="${qrCodeUrl}" alt="QR Code">
