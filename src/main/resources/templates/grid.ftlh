@@ -24,21 +24,22 @@
         {
             display: grid;
             grid-template-columns: 100px 1fr;
-            grid-template-rows: repeat(3, min-content);
+            grid-template-rows: repeat(4, min-content);
             grid-gap: 0;
         }
 
         .top { grid-area: 1 / 1 / 2 / 2; }
         .center { grid-area: 2 / 1 / 3 / 2; }
-        .bottom { grid-area: 3 / 1 / 4 / 3; }
+        .bottom { grid-area: 3 / 1 / 4 / 2; }
         .right { grid-area: 2 / 2 / 3 / 3; }
+        .total-bottom { grid-area:  4 / 1 / 5 / 3; }
 
         .qr-code
         {
             width: 100%;
         }
 
-        .top
+        .top, .bottom
         {
             display: flex;
             justify-content: center;
@@ -87,12 +88,14 @@
             <div class="center">
                 <img class="qr-code" src="${gridEvent.qrCodeUrl}" alt="QR Code">
             </div>
-            <div class="bottom">
+            <div class="total-bottom">
                 <p class="map-name">${gridEvent.map!"Neznámá mapa"}</p>
+            </div>
+            <div class="bottom">
+                <p>${gridEvent.date}</p>
             </div>
             <div class="right">
                 <div class="meta">
-                    <p>${gridEvent.date}</p>
                     <p>${gridEvent.name}</p>
                     <p>${gridEvent.place!"Neznámé místo"}</p>
                 </div>
