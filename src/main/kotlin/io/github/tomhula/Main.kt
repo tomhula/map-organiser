@@ -9,6 +9,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.format
+import kotlinx.datetime.format.Padding
+import kotlinx.datetime.format.char
 import qrcode.QRCode
 import java.io.File
 import java.io.StringWriter
@@ -23,6 +27,13 @@ val freemarkerConfig = Configuration(Configuration.VERSION_2_3_34).apply {
     templateExceptionHandler = TemplateExceptionHandler.RETHROW_HANDLER
     logTemplateExceptions = false
     wrapUncheckedExceptions = true
+}
+val dateFormat = LocalDate.Format { 
+    dayOfMonth(Padding.NONE)
+    char('.')
+    monthNumber(Padding.NONE)
+    char('.')
+    year()
 }
 
 fun main(args: Array<String>) = runBlocking {
@@ -64,17 +75,23 @@ private fun createEventQrCode(event: Event): ByteArray
 @OptIn(ExperimentalEncodingApi::class)
 private fun renderGrid(events: List<Event>): String
 {
-    val eventsWithQrCodeUrls = events.map { event ->
+    val gridEvents = events.map { event ->
         val qrCode = createEventQrCode(event)
         val qrCodeBase64 = Base64.encode(qrCode)
         val qrCodeUrl = "data:image/png;base64,$qrCodeBase64"
-        EventWithQrCode(event, qrCodeUrl)
+        GridEvent(
+            date = event.date?.format(dateFormat),
+            name = event.name,
+            place = event.place,
+            qrCodeUrl = qrCodeUrl,
+            map = event.map
+        )
     }
 
     val dataModel = mapOf(
-        "events" to eventsWithQrCodeUrls,
+        "events" to gridEvents,
     )
-
+    
     val template = freemarkerConfig.getTemplate("grid.ftlh")
     val writer = StringWriter()
     template.process(dataModel, writer)
@@ -83,4 +100,10 @@ private fun renderGrid(events: List<Event>): String
     return result
 }
 
-data class EventWithQrCode(val event: Event, val qrCodeUrl: String)
+data class GridEvent(
+    val date: String?,
+    val name: String,
+    val place: String?,
+    val qrCodeUrl: String,
+    val map: String?
+)

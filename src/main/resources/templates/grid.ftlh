@@ -1,4 +1,4 @@
-<#-- @ftlvariable name="events" type="java.util.List<io.github.tomhula.EventWithQrCode>" -->
+<#-- @ftlvariable name="events" type="java.util.List<io.github.tomhula.GridEvent>" -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,12 +13,11 @@
             box-sizing: border-box;
         }
 
-        .grid-container 
+        .grid-container
         {
             display: grid;
             grid-template-columns: repeat(3, 1fr); /* 3 columns */
-            grid-template-rows: repeat(4, 1fr);    /* 4 rows */
-            gap: 5mm;
+            grid-template-rows: repeat(4, 1fr); /* 4 rows */
         }
 
         .cell-container
@@ -29,47 +28,57 @@
             grid-column-gap: 0;
             grid-row-gap: 0;
         }
+
         .top
         {
             grid-area: 1 / 1 / 2 / 2;
         }
+
         .center
         {
             grid-area: 2 / 1 / 3 / 2;
         }
+
         .bottom
         {
             grid-area: 3 / 1 / 4 / 3;
         }
+
         .right
         {
             grid-area: 2 / 2 / 3 / 3;
         }
+
         .qr-code
         {
             width: 100%;
         }
+
         .top
         {
             display: flex;
             justify-content: center;
             align-items: center;
         }
+
         .number
         {
             font-weight: bold;
             font-size: 20px;
         }
+
         .map-name
         {
             font-size: 20px;
         }
+
         .meta
         {
             display: flex;
             flex-direction: column;
             row-gap: 10px;
         }
+
         .meta p
         {
             text-overflow: ellipsis;
@@ -79,35 +88,29 @@
     </style>
 </head>
 <body>
-    <div class="grid-container">
-        <#list events as eventWithQrCodeUrl>
-            <#assign event = eventWithQrCodeUrl.event>
-            <#assign qrCodeUrl = eventWithQrCodeUrl.qrCodeUrl>
-            <#assign number = eventWithQrCodeUrl?index + 1>
-        
-            <div class="cell-wrapper">
-                <div class="cell-container">
-                    <div class="cell-container">
-                        <div class="top">
-                            <p class="number">${number}</p>
-                        </div>
-                        <div class="center">
-                            <img class="qr-code" src="${qrCodeUrl}" alt="QR Code">
-                        </div>
-                        <div class="bottom">
-                            <p class="map-name">${event.name}</p>
-                        </div>
-                        <div class="right">
-                            <div class="meta">
-                                <p>${event.date}</p>
-                                <p>${event.name}</p>
-                                <p>${(event.place)!"Unknown place"}</p>
-                            </div>
-                        </div>
-                    </div>
+<div class="grid-container">
+    <#list events as gridEvent>
+        <#assign number = gridEvent?index + 1>
+
+        <div class="cell-container">
+            <div class="top">
+                <p class="number">${number}</p>
+            </div>
+            <div class="center">
+                <img class="qr-code" src="${gridEvent.qrCodeUrl}" alt="QR Code">
+            </div>
+            <div class="bottom">
+                <p class="map-name">${gridEvent.map!"Unknown map"}</p>
+            </div>
+            <div class="right">
+                <div class="meta">
+                    <p>${gridEvent.date}</p>
+                    <p>${gridEvent.name}</p>
+                    <p>${gridEvent.place!"Unknown place"}</p>
                 </div>
             </div>
-        </#list>
-    </div>
+        </div>
+    </#list>
+</div>
 </body>
 </html>
