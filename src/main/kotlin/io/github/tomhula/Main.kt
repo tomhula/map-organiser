@@ -34,48 +34,48 @@ val oris: Oris = OrisImpl()
 const val A4_WIDTH_MM = 210
 const val A4_HEIGHT_MM = 297
 
-// Default cell width in centimeters
-const val DEFAULT_CELL_WIDTH_CM = 3.0
-
 fun main(args: Array<String>) = runBlocking {
-    val userRegNum = args[0]
-    // Default cell width is 3cm, but can be overridden by passing a second argument
-    val cellWidthCm = if (args.size > 1) args[1].toDoubleOrNull() ?: DEFAULT_CELL_WIDTH_CM else DEFAULT_CELL_WIDTH_CM
-
-    /*val events = getUserEvents(userRegNum)
-        .sortedBy { it.date }*/
-
-    val lastEvent = oris.getEvent(8222)
-    val lastEventCellImage = createEventCell(
-        number = 254,
-        event = lastEvent,
-        widthPx = 1000,
-        qrCodeSizePx = 100,
-        numberFontSizePx = 50,
-        numberMarginPx = 10,
-        metaMarginPx = 30,
-        metaFontSizePx = 20,
-        metaLineSpacingPx = 10,
-        mapNameFontSizePx = 20,
-        mapNameMarginPx = 10,
-        dpi = Toolkit.getDefaultToolkit().getScreenResolution().also { println("Screen resolution: $it dpi") }
-    )
-
-    saveImageToFile(lastEventCellImage, "last_event_cell.png")
-
-    showImage(lastEventCellImage)
-
-    /*val eventQrCodes = events.associateWith(::createEventQrCode)
-
-    // Create QR code grid images
-    val qrCodeGridImages = createQrCodeGridImages(events, eventQrCodes, cellWidthCm)
-
-    // Save images to files
-    qrCodeGridImages.forEachIndexed { index, image ->
-        saveImageToFile(image, "qr_code_grid_${index + 1}.png")
+    val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
+    val dpi = args.getOrNull(1)?.toIntOrNull() ?: throw RuntimeException("DPI must be provided")
+    
+    val events = getUserEvents(userRegNum).sortedBy { it.date }
+    
+    val createCellForGrid: (Event) -> BufferedImage = { event ->
+        createEventCell(
+            number = events.indexOf(event) + 1,
+            event = event,
+            widthPx = 500,
+            qrCodeSizePx = mmToPx(20f, dpi),
+            numberFontSizePx = mmToPx(4f, dpi),
+            numberMarginPx = 5,
+            metaMarginPx = 15,
+            metaFontSizePx = mmToPx(4f, dpi),
+            metaLineSpacingPx = 5,
+            mapNameFontSizePx = 15,
+            mapNameMarginPx = 5,
+            dpi = 300
+        )
     }
 
-    println("Generated ${qrCodeGridImages.size} QR code grid images")*/
+    val eventGridImages = createEventGrid(
+        events = events,
+        gridWidthPx = mmToPx(A4_WIDTH_MM.toFloat(), 300),
+        gridHeightPx = mmToPx(A4_HEIGHT_MM.toFloat(), 300),
+        verticalGapPx = 20,
+        horizontalGapPx = 20,
+        createCell = createCellForGrid
+    )
+
+    // Save grid images to files
+    eventGridImages.forEachIndexed { index, image ->
+        saveImageToFile(image, "event_grid_${index + 1}.png")
+    }
+
+    println("Generated ${eventGridImages.size} event grid images")
+
+    // Show the first grid image if available
+    if (eventGridImages.isNotEmpty())
+        showImage(eventGridImages.first())
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
@@ -131,6 +131,91 @@ private fun ptToPx(pt: Int, dpi: Int): Int = ptToPx(pt.toFloat(), dpi)
 
 private fun pxToPt(px: Int, dpi: Int): Float = px * 72f / dpi
 
+
+/**
+ * Creates grid images of event cells.
+ * 
+ * @param events List of events
+ * @param gridWidthPx Width of the grid in pixels
+ * @param gridHeightPx Height of the grid in pixels
+ * @param verticalGapPx Vertical gap between cells in pixels
+ * @param horizontalGapPx Horizontal gap between cells in pixels
+ * @param createCell Function that creates a cell for an event
+ * @return List of BufferedImage objects representing the grid images
+ */
+private fun createEventGrid(
+    events: List<Event>,
+    gridWidthPx: Int,
+    gridHeightPx: Int,
+    verticalGapPx: Int,
+    horizontalGapPx: Int,
+    createCell: (Event) -> BufferedImage
+): List<BufferedImage>
+{
+    if (events.isEmpty())
+        return emptyList()
+
+    // Create a sample cell to get dimensions
+    val sampleCell = createCell(events[0])
+    val cellWidthPx = sampleCell.width
+    val cellHeightPx = sampleCell.height
+
+    // Calculate how many cells can fit in a row and column
+    val cellsPerRow = (gridWidthPx - horizontalGapPx) / (cellWidthPx + horizontalGapPx)
+    val cellsPerColumn = (gridHeightPx - verticalGapPx) / (cellHeightPx + verticalGapPx)
+    val cellsPerPage = cellsPerRow * cellsPerColumn
+
+    // Calculate how many pages we need
+    val totalPages = ceil(events.size.toDouble() / cellsPerPage).toInt()
+
+    // Create a list to hold all the grid images
+    val gridImages = mutableListOf<BufferedImage>()
+
+    // Create each page
+    for (page in 0 until totalPages) {
+        // Create a new image with specified dimensions
+        val gridImage = BufferedImage(gridWidthPx, gridHeightPx, BufferedImage.TYPE_INT_RGB)
+        val g2d = gridImage.createGraphics()
+
+        // Set white background
+        g2d.color = Color.WHITE
+        g2d.fillRect(0, 0, gridWidthPx, gridHeightPx)
+
+        // Enable anti-aliasing for better text quality
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+
+        // Calculate how many events to display on this page
+        val startIndex = page * cellsPerPage
+        val endIndex = min((page + 1) * cellsPerPage, events.size)
+
+        // Draw each event cell
+        for (i in startIndex until endIndex) {
+            val event = events[i]
+
+            // Create the cell for this event
+            val cell = createCell(event)
+
+            // Calculate position in the grid
+            val gridPosition = i - startIndex
+            val row = gridPosition / cellsPerRow
+            val col = gridPosition % cellsPerRow
+
+            // Calculate pixel position
+            val x = horizontalGapPx + col * (cellWidthPx + horizontalGapPx)
+            val y = verticalGapPx + row * (cellHeightPx + verticalGapPx)
+
+            // Draw the cell
+            g2d.drawImage(cell, x, y, null)
+        }
+
+        g2d.dispose()
+        gridImages.add(gridImage)
+    }
+
+    return gridImages
+}
+
 /**
  * Sizes are in pixels
  *
@@ -163,7 +248,7 @@ private fun createEventCell(
         var truncatedText = text
         while (fontMetrics.stringWidth("$truncatedText...") > maxWidth && truncatedText.isNotEmpty())
             truncatedText = truncatedText.substring(0, truncatedText.length - 1)
-        
+
         return "$truncatedText..."
     }
 
