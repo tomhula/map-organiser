@@ -74,30 +74,35 @@ fun main(args: Array<String>) = runBlocking {
         .mapValues { entry -> entry.value.sortedBy { it.place?.lowercase() } }
         .toSortedMap(compareBy { it?.lowercase() })
 
-    val eventsMunicipalityIndex = buildString {
-        for ((municipality, municipalityEvents) in eventsByRegionOrdered)
+    val eventsRegionIndex = buildString {
+        for ((region, regionEvents) in eventsByRegionOrdered)
         {
-            appendLine("## ${municipality ?: "N/A"}")
-            for (event in municipalityEvents)
+            appendLine("## ${region ?: "N/A"}")
+            val regionEventsByPlace = regionEvents.groupBy { it.place }
+            val regionEventsWithNumberByPlaceOrdered = regionEventsByPlace
+                .mapValues { entry -> entry.value.map { event -> event to (events.indexOf(event) + 1) } }
+                .mapValues { entry -> entry.value.sortedBy { it.second } }
+                .toSortedMap(compareBy { it?.lowercase() })
+            
+            for ((place, eventsWithNumber) in regionEventsWithNumberByPlaceOrdered)
             {
-                val eventNumber = events.indexOf(event) + 1
-                appendLine("$eventNumber: ${event.place}  ")
+                val eventNumbers = eventsWithNumber.map { it.second }
+                appendLine("$place: ${eventNumbers.joinToString(", ")}  ") // The extra two spaces at the end are for Markdown to make a linebreak
             }
         }
     }
 
-    File("events_by_region.md").writeText(eventsMunicipalityIndex)
+    File("events_by_region.md").writeText(eventsRegionIndex)
 }
 
 private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, List<Event>>
 {
     val eventsWithRegion = events.associateWith { event ->
-        val lat = event.gPSLat?.toFloatOrNull()
-        val lon = event.gPSLon?.toFloatOrNull()
-        val region = if (lat == null || lat == 0f || lon == null || lon == 0f)
-            event.place?.let { getMunicipalityOrPragueDistrict(it) }
+        val coords = event.getCoordinates(events)
+        val region = if (coords != null)
+            getMunicipalityOrPragueDistrict(coords.first, coords.second)
         else
-            getMunicipalityOrPragueDistrict(lat, lon)
+            event.place?.let { getMunicipalityOrPragueDistrict(it) }
         
         delay(1.seconds)
         region
@@ -106,6 +111,25 @@ private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, L
     val eventsByRegion = eventsWithRegion.keys.groupBy { event -> eventsWithRegion[event] }
 
     return eventsByRegion
+}
+
+/**
+ * Returns gps coordinates from the event.
+ * If they are missing, returns those of a parent event if it exists. 
+ * The parent event is searched by id in the [events] collection.
+ */
+private fun Event.getCoordinates(events: Iterable<Event> = listOf()): Pair<Float, Float>?
+{
+    val lat = gPSLat?.toFloatOrNull()
+    val lon = gPSLon?.toFloatOrNull()
+
+    if (lat != null && lat != 0f && 
+        lon != null && lon != 0f)
+        return lat to lon
+    
+    val parentEvent = events.find { it.id == parentId }
+    
+    return parentEvent?.getCoordinates(events)
 }
 
 private suspend fun getMunicipalityOrPragueDistrict(lat: Float, lon: Float): String?
