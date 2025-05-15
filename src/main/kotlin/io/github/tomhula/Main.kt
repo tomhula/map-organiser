@@ -52,6 +52,7 @@ val nominatimHttpClient = HttpClient(Java) {
         header(HttpHeaders.UserAgent, "https://github.com/tomhula/map-organiser")
     }
 }
+/** String used to determine if an address is Prague. */
 const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
 
 fun main(args: Array<String>) = runBlocking {
@@ -119,7 +120,7 @@ private suspend fun getMunicipalityOrPragueDistrict(lat: Float, lon: Float): Str
     val responseJson = JsonParser.parseString(response).asJsonObject
     val addressJson = responseJson["address"]?.asJsonObject ?: return null
     
-    return parseMunicipalityOrPragueDistrict(addressJson)
+    return parseRegionFromAddress(addressJson)
 }
 
 private suspend fun getMunicipalityOrPragueDistrict(place: String): String?
@@ -137,10 +138,14 @@ private suspend fun getMunicipalityOrPragueDistrict(place: String): String?
     val json = JsonParser.parseString(response).asJsonArray.firstOrNull()?.asJsonObject ?: return null
     val addressJson = json["address"]?.asJsonObject ?: return null
     
-    return parseMunicipalityOrPragueDistrict(addressJson)
+    return parseRegionFromAddress(addressJson)
 }
 
-private fun parseMunicipalityOrPragueDistrict(addressJson: JsonObject): String?
+/**
+ * Returns municipality if available.
+ * If municipality is not available and the address is in Prague, city_district is returned.
+ */
+private fun parseRegionFromAddress(addressJson: JsonObject): String?
 {
     val municipality = addressJson["municipality"]?.asString
     if (municipality != null)
