@@ -1,5 +1,6 @@
 package io.github.tomhula
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import freemarker.template.Configuration
 import freemarker.template.TemplateExceptionHandler
@@ -8,8 +9,10 @@ import io.github.tomhula.orisclient.OrisImpl
 import io.github.tomhula.orisclient.dto.Event
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.java.Java
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.async
@@ -21,7 +24,6 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.format
 import kotlinx.datetime.format.Padding
 import kotlinx.datetime.format.char
-import kotlinx.datetime.minus
 import qrcode.QRCode
 import java.io.File
 import java.io.StringWriter
@@ -45,7 +47,12 @@ val dateFormat = LocalDate.Format {
     char('.')
     year()
 }
-val httpClient = HttpClient(Java)
+val nominatimHttpClient = HttpClient(Java) {
+    defaultRequest {
+        header(HttpHeaders.UserAgent, "https://github.com/tomhula/map-organiser")
+    }
+}
+const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
 
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
@@ -60,12 +67,14 @@ fun main(args: Array<String>) = runBlocking {
     println("Event grid of ${events.size} events has been generated to $outputFile")
     
     
-    println("Generating municipality index...")
-    val eventsByMunicipality = groupEventsByMunicipality(events)
-    val eventsByMunicipalityOrdered = eventsByMunicipality.toSortedMap(compareBy { it?.lowercase() })
+    println("Generating region index...")
+    val eventsByRegion = groupEventsByRegion(events)
+    val eventsByRegionOrdered = eventsByRegion
+        .mapValues { entry -> entry.value.sortedBy { it.place?.lowercase() } }
+        .toSortedMap(compareBy { it?.lowercase() })
 
     val eventsMunicipalityIndex = buildString {
-        for ((municipality, municipalityEvents) in eventsByMunicipalityOrdered)
+        for ((municipality, municipalityEvents) in eventsByRegionOrdered)
         {
             appendLine("## ${municipality ?: "N/A"}")
             for (event in municipalityEvents)
@@ -76,35 +85,73 @@ fun main(args: Array<String>) = runBlocking {
         }
     }
 
-    File("events_by_municipality.md").writeText(eventsMunicipalityIndex)
+    File("events_by_region.md").writeText(eventsMunicipalityIndex)
 }
 
-private suspend fun groupEventsByMunicipality(events: Iterable<Event>): Map<String?, List<Event>>
+private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, List<Event>>
 {
-    val eventsWithMunicipality = events.associateWith { event ->
-        if (event.gPSLat == null || event.gPSLat == "0" || event.gPSLon == null || event.gPSLon == "0")
-            return@associateWith null
-
-        val municipality = runCatching {
-            val response =
-                httpClient.get("https://nominatim.openstreetmap.org/reverse?format=json&lat=${event.gPSLat}&lon=${event.gPSLon}") {
-                    header(HttpHeaders.UserAgent, "https://github.com/tomhula/map-organiser")
-                }.bodyAsText()
-            val json = JsonParser.parseString(response).asJsonObject
-            json["address"].asJsonObject["municipality"].asString
-        }
+    val eventsWithRegion = events.associateWith { event ->
+        val lat = event.gPSLat?.toFloatOrNull()
+        val lon = event.gPSLon?.toFloatOrNull()
+        val region = if (lat == null || lat == 0f || lon == null || lon == 0f)
+            event.place?.let { getMunicipalityOrPragueDistrict(it) }
+        else
+            getMunicipalityOrPragueDistrict(lat, lon)
         
-        if (municipality.isFailure)
-            println("Failed to get municipality for https://nominatim.openstreetmap.org/reverse?format=json&lat=${event.gPSLat}&lon=${event.gPSLon}")
-
         delay(1.seconds)
-        municipality.getOrNull()
+        region
     }
+    
+    val eventsByRegion = eventsWithRegion.keys.groupBy { event -> eventsWithRegion[event] }
 
+    return eventsByRegion
+}
 
-    val eventsByMunicipality = eventsWithMunicipality.keys.groupBy { event -> eventsWithMunicipality[event] }
+private suspend fun getMunicipalityOrPragueDistrict(lat: Float, lon: Float): String?
+{
+    val response = nominatimHttpClient
+        .get("https://nominatim.openstreetmap.org/reverse") {
+            parameter("format", "json")
+            parameter("lat", lat)
+            parameter("lon", lon)
+        }
+        .bodyAsText()
+    val responseJson = JsonParser.parseString(response).asJsonObject
+    val addressJson = responseJson["address"]?.asJsonObject ?: return null
+    
+    return parseMunicipalityOrPragueDistrict(addressJson)
+}
 
-    return eventsByMunicipality
+private suspend fun getMunicipalityOrPragueDistrict(place: String): String?
+{
+    val response = nominatimHttpClient
+        .get("https://nominatim.openstreetmap.org/search") {
+            parameter("format", "json")
+            parameter("q", place)
+            parameter("addressdetails", 1)
+            parameter("limit", 1)
+        }
+        .bodyAsText()
+    
+    // Note that 'search' endpoint, unline 'reverse' endpoint returns an array of results
+    val json = JsonParser.parseString(response).asJsonArray.firstOrNull()?.asJsonObject ?: return null
+    val addressJson = json["address"]?.asJsonObject ?: return null
+    
+    return parseMunicipalityOrPragueDistrict(addressJson)
+}
+
+private fun parseMunicipalityOrPragueDistrict(addressJson: JsonObject): String?
+{
+    val municipality = addressJson["municipality"]?.asString
+    if (municipality != null)
+        return municipality
+
+    val isPrague = addressJson["city"]?.asString == OPENSTREETMAP_PRAGUE_NAME
+    if (!isPrague)
+        return null
+
+    val pragueDistrict = addressJson["city_district"]?.asString
+    return pragueDistrict
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
