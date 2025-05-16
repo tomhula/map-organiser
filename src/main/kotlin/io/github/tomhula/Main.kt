@@ -104,8 +104,6 @@ fun main(args: Array<String>) = runBlocking {
     
     println("Map index of ${mapIndex.size} maps has been generated to $mapIndexOutputPath")
     
-    return@runBlocking
-    
     println("Generating region index...")
 
     val addressedEvents = events.associateWith { delay(1.seconds); it.getAddress(events) }
