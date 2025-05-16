@@ -69,6 +69,7 @@ val nominatimHttpClient = HttpClient(Java) {
 const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
 const val UNKNOWN_PLACE = "~Neznámé místo"
 const val UNKNOWN_REGION = "~Neznámá oblast"
+const val UNKNOWN_MAP = "~Neznámá mapa"
 
 // Czech collator for string comparison according to Czech locale rules
 val czechCollator = Collator.getInstance(Locale.of("cs", "CZ"))
@@ -77,6 +78,7 @@ fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
     val eventGridOutputPath = args.getOrNull(1) ?: "event_grid.html"
     val regionIndexOutputPath = args.getOrNull(2) ?: "region_index.html"
+    val mapIndexOutputPath = args.getOrNull(3) ?: "map_index.html"
 
     println("Downloading events of user $userRegNum...")
     val events = getUserEvents(userRegNum)
@@ -89,6 +91,21 @@ fun main(args: Array<String>) = runBlocking {
     gridHtml.saveToFile(eventGridOutputPath)
     println("Event grid of ${numberedEvents.size} events has been generated to $eventGridOutputPath")
 
+    println("Generating map index...")
+    
+    val mapIndex = events.associate { event ->
+        (event.map ?: UNKNOWN_MAP) to numberedEvents[event]!!
+    }.toSortedMap(compareBy { map ->
+        map.let { czechCollator.getCollationKey(it) }
+    })
+    
+    val mapIndexHtml = renderMapIndex(mapIndex)
+    mapIndexHtml.saveToFile(mapIndexOutputPath)
+    
+    println("Map index of ${mapIndex.size} maps has been generated to $mapIndexOutputPath")
+    
+    return@runBlocking
+    
     println("Generating region index...")
 
     val addressedEvents = events.associateWith { delay(1.seconds); it.getAddress(events) }
@@ -287,6 +304,20 @@ private fun renderRegionIndex(regionIndex: Map<String, Map<String, List<Int>>>):
     )
     
     val template = freemarkerConfig.getTemplate("region_index.ftlh")
+    val writer = StringWriter()
+    template.process(dataModel, writer)
+    val result = writer.toString()
+    writer.close()
+    return result
+}
+
+private fun renderMapIndex(mapIndex: Map<String?, Int>): String
+{
+    val dataModel = mapOf(
+        "mapIndex" to mapIndex
+    )
+    
+    val template = freemarkerConfig.getTemplate("map_index.ftlh")
     val writer = StringWriter()
     template.process(dataModel, writer)
     val result = writer.toString()
