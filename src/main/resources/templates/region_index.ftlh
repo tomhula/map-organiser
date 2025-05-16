@@ -17,6 +17,12 @@
             font-size: 7px;
         }
 
+        h1
+        {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
         h2
         {
             font-size: 1.2em;
@@ -57,6 +63,7 @@
     </style>
 </head>
 <body>
+<h1>Rejstřík podle oblasti</h1>
 <#list regionIndex?keys as section>
     <h2>${section!"Neznámé"}</h2>
     <#assign topics = regionIndex[section]>
