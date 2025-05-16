@@ -45,7 +45,7 @@
             background: white;
             padding-right: 8px;
             position: relative;
-            margin-left: 10px;
+            padding-left: 10px;
         }
 
         .pages
