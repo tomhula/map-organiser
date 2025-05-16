@@ -27,9 +27,11 @@ import kotlinx.datetime.format.char
 import qrcode.QRCode
 import java.io.File
 import java.io.StringWriter
+import kotlin.collections.map
 import kotlin.collections.mapOf
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.io.writeText
 import kotlin.time.Duration.Companion.seconds
 import kotlin.to
 
@@ -64,35 +66,37 @@ fun main(args: Array<String>) = runBlocking {
 
     println("Downloading events of user $userRegNum...")
     val events = getUserEvents(userRegNum)
+    val numberedEvents = numberEvents(events)
 
     println("Generating event grid...")
-    val gridHtml = renderGrid(events)
-    File(eventGridOutputPath).writeText(gridHtml)
-    println("Event grid of ${events.size} events has been generated to $eventGridOutputPath")
-    
-    
+    val gridHtml = renderGrid(numberedEvents)
+    gridHtml.saveToFile(eventGridOutputPath)
+    println("Event grid of ${numberedEvents.size} events has been generated to $eventGridOutputPath")
+
     println("Generating region index...")
+
     val eventsByRegion = groupEventsByRegion(events)
-    val eventsByRegionOrdered = eventsByRegion
-        .mapValues { entry -> entry.value.sortedBy { it.place?.lowercase() } }
-        .toSortedMap(compareBy { it?.lowercase() })
-    
-    val eventsByPlaceByRegion = eventsByRegionOrdered.mapValues { entry ->
-        entry.value
-            .groupBy { it.place?.lowercase() }
-            .toSortedMap(compareBy { it?.lowercase() })
+    val eventsByPlaceByRegion = eventsByRegion.mapValues { entry ->
+        entry.value.groupBy { it.place }
     }
-    
-    val eventsRegionIndex = eventsByPlaceByRegion.mapValues { entry -> 
-        entry.value.mapValues { 
-            it.value
-                .map { event -> events.indexOf(event) + 1 }
-                .sorted()
+    val eventNumbersByPlaceByRegion = eventsByPlaceByRegion.mapValues { regionEntry ->
+        regionEntry.value.mapValues { placeEntry ->
+            placeEntry.value.map { event -> numberedEvents[event]!! }
         }
     }
+
+    val eventNumbersByPlaceByRegionOrdered = eventNumbersByPlaceByRegion.mapValues { regionEntry ->
+        regionEntry.value.mapValues { placeEntry ->
+            placeEntry.value.sorted()
+        }.toSortedMap(compareBy { place -> place?.lowercase() })
+    }.toSortedMap(compareBy { region -> region?.lowercase() })
+
+    val regionIndexHtml = renderRegionIndex(eventNumbersByPlaceByRegionOrdered)
     
-    File(regionIndexOutputPath).writeText(renderRegionIndex(eventsRegionIndex))
+    File(regionIndexOutputPath).writeText(regionIndexHtml)
 }
+
+private fun String.saveToFile(path: String) = File(path).writeText(this)
 
 private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, List<Event>>
 {
@@ -145,6 +149,14 @@ private suspend fun getRegion(lat: Float, lon: Float): String?
     
     return parseRegionFromAddress(addressJson)?.replace("obvod ", "")?.replace("okres ", "")
 }
+
+private fun numberEvents(events: List<Event>): Map<Event, Int>
+{
+    return events
+        .mapIndexed { index, event -> event to index + 1 }
+        .toMap()
+}
+
 
 private suspend fun getRegion(place: String): String?
 {
@@ -222,13 +234,14 @@ private fun renderRegionIndex(regionIndex: Map<String?, Map<String?, List<Int>>>
 }
 
 @OptIn(ExperimentalEncodingApi::class)
-private fun renderGrid(events: List<Event>): String
+private fun renderGrid(numberedEvents: Map<Event, Int>): String
 {
-    val gridEvents = events.map { event ->
+    val gridEvents = numberedEvents.map { (event, number) ->
         val qrCode = createEventQrCode(event)
         val qrCodeBase64 = Base64.encode(qrCode)
         val qrCodeUrl = "data:image/png;base64,$qrCodeBase64"
         GridEvent(
+            number = number,
             date = event.date?.format(dateFormat),
             name = event.name,
             place = event.place,
@@ -250,6 +263,7 @@ private fun renderGrid(events: List<Event>): String
 }
 
 data class GridEvent(
+    val number: Int,
     val date: String?,
     val name: String,
     val place: String?,

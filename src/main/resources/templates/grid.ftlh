@@ -83,11 +83,9 @@
 <body>
 <div class="grid-container">
     <#list events as gridEvent>
-        <#assign number = gridEvent?index + 1>
-
         <div class="cell-container">
             <div class="top">
-                <p class="number">${number}</p>
+                <p class="number">${gridEvent.number}</p>
             </div>
             <div class="center">
                 <img class="qr-code" src="${gridEvent.qrCodeUrl}" alt="QR Code">
