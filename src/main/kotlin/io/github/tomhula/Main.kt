@@ -65,8 +65,8 @@ val nominatimHttpClient = HttpClient(Java) {
 }
 /** String used to determine if an address is Prague. */
 const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
-const val NULL_PLACE = "Neznámé místo"
-const val NULL_REGION = "Neznámá oblast"
+const val UNKNOWN_PLACE = "~Neznámé místo"
+const val UNKNOWN_REGION = "~Neznámá oblast"
 
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
@@ -86,9 +86,10 @@ fun main(args: Array<String>) = runBlocking {
 
     println("Generating region index...")
 
-    val eventsByRegion = groupEventsByRegion(events)
+    val addressedEvents = events.associateWith { delay(1.seconds); it.getAddress(events) }
+    val eventsByRegion = groupEventsByRegion(addressedEvents)
     val eventsByPlaceByRegion = eventsByRegion.mapValues { entry ->
-        entry.value.groupBy { it.place }
+        entry.value.groupBy { it.determinePlaceName(addressedEvents[it], events) }
     }
     val eventNumbersByPlaceByRegion = eventsByPlaceByRegion.mapValues { regionEntry ->
         regionEntry.value.mapValues { placeEntry ->
@@ -103,8 +104,8 @@ fun main(args: Array<String>) = runBlocking {
     }.toSortedMap(compareBy { region -> region?.lowercase() })
     
     val eventNumbersByPlaceByRegionOrderedNonNull = eventNumbersByPlaceByRegionOrdered.mapValues { regionEntry ->
-        regionEntry.value.mapKeys { placeEntry -> placeEntry.key ?: NULL_PLACE }
-    }.mapKeys { regionEntry -> regionEntry.key ?: NULL_REGION }
+        regionEntry.value.mapKeys { placeEntry -> placeEntry.key ?: UNKNOWN_PLACE }
+    }.mapKeys { regionEntry -> regionEntry.key ?: UNKNOWN_REGION }
 
     val regionIndexHtml = renderRegionIndex(eventNumbersByPlaceByRegionOrderedNonNull)
     
@@ -113,13 +114,12 @@ fun main(args: Array<String>) = runBlocking {
 
 private fun String.saveToFile(path: String) = File(path).writeText(this)
 
-private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, List<Event>>
+private fun groupEventsByRegion(addressedEvents: Map<Event, NominatimPlace.Address?>): Map<String?, List<Event>>
 {
     // No running in parallel and with a 1-second delay because of the Nominatim policy: https://operations.osmfoundation.org/policies/nominatim/
-    val eventsWithRegion = events.associateWith { event ->
-        val region = event.getRegion(events)?.replace("obvod ", "")?.replace("okres ", "")
-        delay(1.seconds)
-        region
+    val eventsWithRegion = addressedEvents.entries.associate { (event, address) ->
+        val region = address?.determineRegion()
+        event to region
     }
     
     val eventsByRegion = eventsWithRegion.keys.groupBy { event -> eventsWithRegion[event] }
@@ -148,10 +148,29 @@ private fun numberEvents(events: List<Event>): Map<Event, Int>
         .toMap()
 }
 
-private suspend fun Event.getRegion(events: Iterable<Event>): String?
+private fun Event.determinePlaceName(address: NominatimPlace.Address?, events: Iterable<Event> = listOf()): String?
 {
-    val address = getAddress(events) ?: return null
-    return determineRegionFromAddress(address)
+    if (place != null)
+        return place!!
+    
+    if (address != null)
+    {
+        if (address.city == OPENSTREETMAP_PRAGUE_NAME)
+            return null
+        
+        if (address.village != null)
+            return address.village
+        
+        if (address.town != null)
+            return address.town
+    }
+    
+    val parentEvent = getParent(events)
+    
+    if (parentEvent != null)
+        return parentEvent.determinePlaceName(address, events)
+    
+    return null
 }
 
 /**
@@ -211,18 +230,18 @@ private suspend fun Event.getAddress(events: Iterable<Event>): NominatimPlace.Ad
  * Returns municipality if available.
  * If municipality is not available and the address is in Prague, city_district is returned.
  */
-private fun determineRegionFromAddress(address: NominatimPlace.Address): String?
+private fun NominatimPlace.Address.determineRegion(): String?
 {
-    val municipality = address.municipality
+    val municipality = municipality
     if (municipality != null)
-        return municipality
+        return municipality.replace("okres ", "")
 
-    val isPrague = address.city == OPENSTREETMAP_PRAGUE_NAME
+    val isPrague = city == OPENSTREETMAP_PRAGUE_NAME
     if (!isPrague)
         return null
 
-    val pragueDistrict = address.city_district
-    return pragueDistrict
+    val pragueDistrict = city_district
+    return pragueDistrict?.replace("obvod ", "")
 }
 
 private suspend fun getUserEvents(userRegNum: String): List<Event>
