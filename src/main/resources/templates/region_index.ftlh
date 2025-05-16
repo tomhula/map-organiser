@@ -14,7 +14,7 @@
         body
         {
             max-width: 1000px;
-            font-size: 8px;
+            font-size: 7px;
         }
 
         h2
