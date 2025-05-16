@@ -13,13 +13,13 @@
 
         body
         {
-            max-width: 600px;
+            max-width: 1000px;
+            font-size: 8px;
         }
 
         h2
         {
-            font-size: 19px;
-            margin: 10px 0;
+            font-size: 1.2em;
         }
 
         .entry
@@ -45,6 +45,7 @@
             background: white;
             padding-right: 8px;
             position: relative;
+            margin-left: 10px;
         }
 
         .pages

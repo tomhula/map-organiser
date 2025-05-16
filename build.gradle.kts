@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.1.20"
+    kotlin("plugin.serialization") version "2.1.20"
 }
 
 group = "io.github.tomhula"
@@ -18,6 +19,8 @@ dependencies {
     implementation("org.freemarker:freemarker:2.3.34")
     implementation("io.ktor:ktor-client-core:3.1.3")
     implementation("io.ktor:ktor-client-java:3.1.3")
+    implementation("io.ktor:ktor-client-content-negotiation:3.1.3")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.3")
 
     testImplementation(kotlin("test"))
 }
