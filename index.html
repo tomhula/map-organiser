@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Region Index</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        body {
+            max-width: 600px;
+        }
+
+        h2 {
+            font-size: 1.2em;
+            margin: 0.2em 0;
+        }
+
+        .entry {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .entry::before {
+            content: "";
+            position: absolute;
+            top: 75%;
+            left: 0;
+            right: 0;
+            border-bottom: 1px dotted #aaa;
+            z-index: 0;
+        }
+
+        .topic {
+            background: white;
+            padding-right: 0.5em;
+            position: relative;
+        }
+
+        .pages {
+            background: white;
+            padding-left: 0.5em;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+<h2>Section A</h2>
+<div class="entry">
+    <div class="topic">Apple</div>
+    <div class="pages">1</div>
+</div>
+<div class="entry">
+    <div class="topic">Avocado</div>
+    <div class="pages">2–3</div>
+</div>
+
+<h2>Section B</h2>
+<div class="entry">
+    <div class="topic">Banana</div>
+    <div class="pages">4</div>
+</div>
+<div class="entry">
+    <div class="topic">Blueberry</div>
+    <div class="pages">5, 7, 10</div>
+</div>
+
+<h2>Section C</h2>
+<div class="entry">
+    <div class="topic">Cherry</div>
+    <div class="pages">6–8</div>
+</div>
+<div class="entry">
+    <div class="topic">Coconut</div>
+    <div class="pages">9</div>
+</div>
+
+</body>
+</html>

@@ -27,9 +27,11 @@ import kotlinx.datetime.format.char
 import qrcode.QRCode
 import java.io.File
 import java.io.StringWriter
+import kotlin.collections.mapOf
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Duration.Companion.seconds
+import kotlin.to
 
 
 val oris: Oris = OrisImpl()
@@ -57,15 +59,16 @@ const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
 
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
-    val outputFile = args.getOrNull(1) ?: "event_grid.html"
+    val eventGridOutputPath = args.getOrNull(1) ?: "event_grid.html"
+    val regionIndexOutputPath = args.getOrNull(2) ?: "region_index.html"
 
     println("Downloading events of user $userRegNum...")
     val events = getUserEvents(userRegNum)
 
     println("Generating event grid...")
     val gridHtml = renderGrid(events)
-    File(outputFile).writeText(gridHtml)
-    println("Event grid of ${events.size} events has been generated to $outputFile")
+    File(eventGridOutputPath).writeText(gridHtml)
+    println("Event grid of ${events.size} events has been generated to $eventGridOutputPath")
     
     
     println("Generating region index...")
@@ -73,26 +76,22 @@ fun main(args: Array<String>) = runBlocking {
     val eventsByRegionOrdered = eventsByRegion
         .mapValues { entry -> entry.value.sortedBy { it.place?.lowercase() } }
         .toSortedMap(compareBy { it?.lowercase() })
-
-    val eventsRegionIndex = buildString {
-        for ((region, regionEvents) in eventsByRegionOrdered)
-        {
-            appendLine("## ${region ?: "N/A"}")
-            val regionEventsByPlace = regionEvents.groupBy { it.place }
-            val regionEventsWithNumberByPlaceOrdered = regionEventsByPlace
-                .mapValues { entry -> entry.value.map { event -> event to (events.indexOf(event) + 1) } }
-                .mapValues { entry -> entry.value.sortedBy { it.second } }
-                .toSortedMap(compareBy { it?.lowercase() })
-            
-            for ((place, eventsWithNumber) in regionEventsWithNumberByPlaceOrdered)
-            {
-                val eventNumbers = eventsWithNumber.map { it.second }
-                appendLine("$place: ${eventNumbers.joinToString(", ")}  ") // The extra two spaces at the end are for Markdown to make a linebreak
-            }
+    
+    val eventsByPlaceByRegion = eventsByRegionOrdered.mapValues { entry ->
+        entry.value
+            .groupBy { it.place?.lowercase() }
+            .toSortedMap(compareBy { it?.lowercase() })
+    }
+    
+    val eventsRegionIndex = eventsByPlaceByRegion.mapValues { entry -> 
+        entry.value.mapValues { 
+            it.value
+                .map { event -> events.indexOf(event) + 1 }
+                .sorted()
         }
     }
-
-    File("events_by_region.md").writeText(eventsRegionIndex)
+    
+    File(regionIndexOutputPath).writeText(renderRegionIndex(eventsRegionIndex))
 }
 
 private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, List<Event>>
@@ -100,9 +99,9 @@ private suspend fun groupEventsByRegion(events: Iterable<Event>): Map<String?, L
     val eventsWithRegion = events.associateWith { event ->
         val coords = event.getCoordinates(events)
         val region = if (coords != null)
-            getMunicipalityOrPragueDistrict(coords.first, coords.second)
+            getRegion(coords.first, coords.second)
         else
-            event.place?.let { getMunicipalityOrPragueDistrict(it) }
+            event.place?.let { getRegion(it) }
         
         delay(1.seconds)
         region
@@ -132,7 +131,7 @@ private fun Event.getCoordinates(events: Iterable<Event> = listOf()): Pair<Float
     return parentEvent?.getCoordinates(events)
 }
 
-private suspend fun getMunicipalityOrPragueDistrict(lat: Float, lon: Float): String?
+private suspend fun getRegion(lat: Float, lon: Float): String?
 {
     val response = nominatimHttpClient
         .get("https://nominatim.openstreetmap.org/reverse") {
@@ -144,10 +143,10 @@ private suspend fun getMunicipalityOrPragueDistrict(lat: Float, lon: Float): Str
     val responseJson = JsonParser.parseString(response).asJsonObject
     val addressJson = responseJson["address"]?.asJsonObject ?: return null
     
-    return parseRegionFromAddress(addressJson)
+    return parseRegionFromAddress(addressJson)?.replace("obvod ", "")?.replace("okres ", "")
 }
 
-private suspend fun getMunicipalityOrPragueDistrict(place: String): String?
+private suspend fun getRegion(place: String): String?
 {
     val response = nominatimHttpClient
         .get("https://nominatim.openstreetmap.org/search") {
@@ -206,6 +205,20 @@ private fun createEventQrCode(event: Event): ByteArray
         .withInnerSpacing(0)
         .build("https://oris.orientacnisporty.cz/Zavod?id=${event.id}")
         .renderToBytes()
+}
+
+private fun renderRegionIndex(regionIndex: Map<String?, Map<String?, List<Int>>>): String
+{
+    val dataModel = mapOf(
+        "regionIndex" to regionIndex
+    )
+    
+    val template = freemarkerConfig.getTemplate("region_index.ftlh")
+    val writer = StringWriter()
+    template.process(dataModel, writer)
+    val result = writer.toString()
+    writer.close()
+    return result
 }
 
 @OptIn(ExperimentalEncodingApi::class)
