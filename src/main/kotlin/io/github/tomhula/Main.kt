@@ -28,6 +28,8 @@ import kotlinx.serialization.json.Json
 import qrcode.QRCode
 import java.io.File
 import java.io.StringWriter
+import java.text.Collator
+import java.util.Locale
 import kotlin.collections.map
 import kotlin.collections.mapOf
 import kotlin.io.encoding.Base64
@@ -68,6 +70,9 @@ const val OPENSTREETMAP_PRAGUE_NAME = "Hlavní město Praha"
 const val UNKNOWN_PLACE = "~Neznámé místo"
 const val UNKNOWN_REGION = "~Neznámá oblast"
 
+// Czech collator for string comparison according to Czech locale rules
+val czechCollator = Collator.getInstance(Locale.of("cs", "CZ"))
+
 fun main(args: Array<String>) = runBlocking {
     val userRegNum = args.getOrNull(0) ?: throw RuntimeException("User registration number must be provided")
     val eventGridOutputPath = args.getOrNull(1) ?: "event_grid.html"
@@ -100,8 +105,12 @@ fun main(args: Array<String>) = runBlocking {
     val eventNumbersByPlaceByRegionOrdered = eventNumbersByPlaceByRegion.mapValues { regionEntry ->
         regionEntry.value.mapValues { placeEntry ->
             placeEntry.value.sorted()
-        }.toSortedMap(compareBy { place -> place?.lowercase() })
-    }.toSortedMap(compareBy { region -> region?.lowercase() })
+        }.toSortedMap(compareBy { place -> 
+            place?.let { czechCollator.getCollationKey(it) } 
+        })
+    }.toSortedMap(compareBy { region -> 
+        region?.let { czechCollator.getCollationKey(it) } 
+    })
     
     val eventNumbersByPlaceByRegionOrderedNonNull = eventNumbersByPlaceByRegionOrdered.mapValues { regionEntry ->
         regionEntry.value.mapKeys { placeEntry -> placeEntry.key ?: UNKNOWN_PLACE }
@@ -110,6 +119,8 @@ fun main(args: Array<String>) = runBlocking {
     val regionIndexHtml = renderRegionIndex(eventNumbersByPlaceByRegionOrderedNonNull)
     
     File(regionIndexOutputPath).writeText(regionIndexHtml)
+    
+    println("Region index of ${eventNumbersByPlaceByRegionOrderedNonNull.size} regions has been generated to $regionIndexOutputPath")
 }
 
 private fun String.saveToFile(path: String) = File(path).writeText(this)
